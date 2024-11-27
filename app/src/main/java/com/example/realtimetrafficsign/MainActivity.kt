@@ -5,9 +5,11 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.YuvImage
 import android.os.Bundle
 import android.util.Log
+import android.view.Surface
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -30,35 +32,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultTextView: TextView
     private lateinit var cameraExecutor: ExecutorService
     private val imgSize = 150
-    private val REQUIRED_PERMISSIONS = mutableListOf (
-        Manifest.permission.CAMERA
-    ).toTypedArray()
-    private val REQUEST_CODE_PERMISSIONS = 10
-
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        if(!allPermissionsGranted()) {
-            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
-        }
-
-        if(allPermissionsGranted()) {
-            startCamera()
-        }
-
-//        if (allPermissionsGranted()) {
-//            startCamera()
-//        } else {
-//            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
-//        }
-
         setContentView(R.layout.main_activity)
 
         resultTextView = findViewById(R.id.resultTextView)
+
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 100)
+        }
 
         // Start CameraX
         startCamera()
@@ -71,24 +54,31 @@ class MainActivity : AppCompatActivity() {
 
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(findViewById<PreviewView>(R.id.previewView).surfaceProvider)
-            }
-
-            val imageAnalyzer = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            val preview = Preview.Builder()
+                .setTargetRotation(Surface.ROTATION_0)
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, { image ->
+                    it.surfaceProvider = findViewById<PreviewView>(R.id.previewView).surfaceProvider
+                }
+
+            val imageCapture = ImageCapture.Builder()
+                .setTargetRotation(Surface.ROTATION_0)
+                .build()
+
+            val imageAnalyzer = ImageAnalysis.Builder()
+                .setTargetRotation(Surface.ROTATION_0)
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor) { image ->
                         analyzeImage(image)
                         image.close()
-                    })
+                    }
                 }
 
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
-                    this as LifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalyzer
+                    this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, imageAnalyzer
                 )
             } catch (e: Exception) {
                 Log.e("CameraX", "Camera binding failed", e)
@@ -98,62 +88,79 @@ class MainActivity : AppCompatActivity() {
 
     private fun analyzeImage(image: ImageProxy) {
         val bitmap = imageProxyToBitmap(image)
-        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, imgSize, imgSize, false)
+        val rotatedBitmap = rotateBitmapFromImageProxy(bitmap, image)
+        val scaledBitmap = Bitmap.createScaledBitmap(rotatedBitmap , imgSize, imgSize, false)
+        val normalizedByteBuffer = normalizeByteBuffer(scaledBitmap)
 
-        classifyImage(scaledBitmap)
+        classifyImage(normalizedByteBuffer)
     }
 
-    private fun classifyImage(image: Bitmap) {
-        try {
-            val model = Model.newInstance(applicationContext)
+    private fun rotateBitmapFromImageProxy(bitmap: Bitmap, image: ImageProxy): Bitmap {
+        val rotationDegrees = 90
+        return rotateBitmap(bitmap, rotationDegrees)
+    }
 
-            val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, imgSize, imgSize, 3), DataType.FLOAT32)
-            val byteBuffer = ByteBuffer.allocateDirect(4 * imgSize * imgSize * 3).apply {
-                order(ByteOrder.nativeOrder())
-            }
+    private fun rotateBitmap(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(rotationDegrees.toFloat())
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
 
-            val intValues = IntArray(imgSize * imgSize)
-            image.getPixels(intValues, 0, image.width, 0, 0, image.width, image.height)
-            var pixel = 0
-            for (i in 0 until imgSize) {
-                for (j in 0 until imgSize) {
-                    val value = intValues[pixel++]
-                    byteBuffer.putFloat(((value shr 16) and 0xFF) * (1f / 255))
-                    byteBuffer.putFloat(((value shr 8) and 0xFF) * (1f / 255))
-                    byteBuffer.putFloat((value and 0xFF) * (1f / 255))
-                }
-            }
 
-            inputFeature0.loadBuffer(byteBuffer)
+    private fun normalizeByteBuffer(bitmap: Bitmap): ByteBuffer {
+        val width = bitmap.width
+        val height = bitmap.height
+        val pixels = IntArray(width * height)
 
-            // Runs model inference and gets result
-            val outputs = model.process(inputFeature0)
-            val confidences = outputs.outputFeature0AsTensorBuffer.floatArray
-            val classes = arrayOf("Putar Balik", "Dilarang Putar Balik", "Belok Kiri", "Belok Kanan")
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-            val maxIndex = confidences.indices.maxByOrNull { confidences[it] } ?: -1
-            val confidence = confidences[maxIndex]
+        val floatBuffer = ByteBuffer.allocateDirect(4 * width * height * 3)
+        floatBuffer.order(ByteOrder.nativeOrder())
 
-            runOnUiThread {
-                resultTextView.text = if (confidence > 0.94) {
-                    "Hasil: ${classes[maxIndex]} (%.2f%%)".format(confidence * 100)
-                } else {
-                    "Hasil: Tidak jelas. Coba lagi."
-                }
-            }
+        for (pixel in pixels) {
+            val r = ((pixel shr 16) and 0xFF) / 255f
+            val g = ((pixel shr 8) and 0xFF) / 255f
+            val b = (pixel and 0xFF) / 255f
 
-            model.close()
-        } catch (e: Exception) {
-            Log.e("Model Error", "Error during inference", e)
+            floatBuffer.putFloat(r)
+            floatBuffer.putFloat(g)
+            floatBuffer.putFloat(b)
         }
+
+//        return Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+        return floatBuffer
+    }
+
+    private fun classifyImage(image: ByteBuffer) {
+        val model = Model.newInstance(applicationContext)
+
+        val inputFeature0 = TensorBuffer.createFixedSize(intArrayOf(1, imgSize, imgSize, 3), DataType.FLOAT32)
+//        val byteBuffer = ByteBuffer.allocateDirect(4 * imgSize * imgSize * 3).apply {
+//            order(ByteOrder.nativeOrder())
+//        }
+//
+        inputFeature0.loadBuffer(image)
+
+        // Runs model inference and gets result
+        val outputs = model.process(inputFeature0)
+        val confidences = outputs.outputFeature0AsTensorBuffer.floatArray
+        val classes = arrayOf("Putar Balik", "Dilarang Putar Balik", "Belok Kiri", "Belok Kanan")
+
+        val maxIndex = confidences.indices.maxByOrNull { confidences[it] } ?: -1
+        val confidence = confidences[maxIndex]
+
+        runOnUiThread {
+            resultTextView.text = if (confidence > 0.90) {
+                "Hasil: ${classes[maxIndex]} (%.2f%%)".format(confidence * 100)
+            } else {
+                "Hasil: Tidak jelas. Coba lagi."
+            }
+        }
+
+        model.close()
     }
 
     private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
-//        val buffer = image.planes[0].buffer
-//        val bytes = ByteArray(buffer.remaining())
-//        buffer.get(bytes)
-//        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-
         val yBuffer = image.planes[0].buffer
         val uBuffer = image.planes[1].buffer
         val vBuffer = image.planes[2].buffer
@@ -176,7 +183,10 @@ class MainActivity : AppCompatActivity() {
         yuvImage.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), 100, out)
         val byteArray = out.toByteArray()
 
-        return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)!!
+        val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)!!
+
+        // Konversi ke format RGB jika Bitmap berformat ARGB
+        return bitmap.copy(Bitmap.Config.RGB_565, true) // Menghapus alpha channel
     }
 
     override fun onDestroy() {
