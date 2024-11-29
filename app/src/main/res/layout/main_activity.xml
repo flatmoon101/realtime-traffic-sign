@@ -5,42 +5,64 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context=".MainActivity">
 
-    <!-- PreviewView for CameraX -->
-    <androidx.camera.view.PreviewView
-        android:id="@+id/previewView"
+    <ImageView
         android:layout_width="match_parent"
-        android:layout_height="350dp"
-        android:layout_marginHorizontal="20dp"
-        android:layout_marginTop="20dp"
+        android:layout_height="350sp"
         android:layout_centerHorizontal="true"
-        android:contentDescription="Camera Preview" />
+        android:layout_marginTop="20sp"
+        android:layout_marginBottom="20sp"
+        android:layout_marginHorizontal="20sp"
+        android:id="@+id/img"
+        android:contentDescription="img_target" />
 
-    <!-- Result TextView -->
     <TextView
-        android:id="@+id/resultTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/previewView"
-        android:layout_marginTop="10dp"
-        android:layout_marginHorizontal="20dp"
-        android:text="Hasil akan ditampilkan di sini"
+        android:layout_centerHorizontal="true"
+        android:textStyle="bold"
+        android:textSize="21sp"
+        android:layout_marginVertical="10sp"
+        android:layout_marginHorizontal="20sp"
+        android:id="@+id/hasil"
+        android:layout_below="@+id/img"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:id="@+id/button_camera"
+        android:textAllCaps="false"
+        android:text="Ambil Gambar"
         android:textSize="21sp"
         android:textStyle="bold"
-        android:gravity="center" />
+        android:gravity="center"
+        android:layout_marginHorizontal="20sp"
+        android:layout_below="@+id/hasil"/>
 
-    <!-- Stop Camera Button (Optional) -->
     <Button
-        android:id="@+id/stopCameraButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/resultTextView"
-        android:layout_marginTop="20dp"
-        android:layout_marginHorizontal="20dp"
-        android:text="Berhenti"
+        android:layout_centerInParent="true"
+        android:layout_marginHorizontal="20sp"
+        android:id="@+id/button_gallery"
+        android:textAllCaps="false"
+        android:text="Buka Gallery"
+        android:textSize="21sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_below="@+id/button_camera"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:layout_marginHorizontal="20sp"
+        android:id="@+id/button_realtime"
+        android:text="Coba Realtime"
         android:textAllCaps="false"
         android:textSize="21sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:visibility="gone" />
+        android:layout_below="@+id/button_gallery"/>
 
 </RelativeLayout>

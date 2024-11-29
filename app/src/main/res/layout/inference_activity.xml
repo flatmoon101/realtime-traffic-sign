@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".InferenceActivity">
+
+    <!-- PreviewView for CameraX -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="match_parent"
+        android:layout_height="350dp"
+        android:layout_marginHorizontal="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_centerHorizontal="true"
+        android:contentDescription="Camera Preview" />
+
+    <!-- Result TextView -->
+    <TextView
+        android:id="@+id/resultTextView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/previewView"
+        android:layout_marginTop="10dp"
+        android:layout_marginHorizontal="20dp"
+        android:text="Hasil: "
+        android:textSize="21sp"
+        android:textStyle="bold"
+        android:gravity="center" />
+
+    <!-- Stop Camera Button (Optional) -->
+<!--    <Button-->
+<!--        android:id="@+id/stopCameraButton"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_below="@id/resultTextView"-->
+<!--        android:layout_marginTop="20dp"-->
+<!--        android:layout_marginHorizontal="20dp"-->
+<!--        android:text="Berhenti"-->
+<!--        android:textAllCaps="false"-->
+<!--        android:textSize="21sp"-->
+<!--        android:textStyle="bold"-->
+<!--        android:gravity="center"-->
+<!--        android:visibility="gone" />-->
+
+</RelativeLayout>

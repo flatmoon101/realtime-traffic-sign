@@ -26,6 +26,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity android:name=".InferenceActivity"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize"
+            tools:ignore="DiscouragedApi" />
     </application>
 
 </manifest>
